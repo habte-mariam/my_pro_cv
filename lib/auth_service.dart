@@ -7,23 +7,27 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // መጀመሪያ ከ GitHub (Environment) ካጣ ደግሞ ከ PC (.env) ይወስዳል
-  static final String _googleClientId =
-      String.fromEnvironment('GOOGLE_CLIENT_ID').isNotEmpty
-          ? String.fromEnvironment('GOOGLE_CLIENT_ID')
-          : (dotenv.env['GOOGLE_CLIENT_ID'] ?? '');
+  // 1. ቁልፉን በ const መሳብ (ይህ ለ GitHub ቢልድ ወሳኝ ነው)
+  static const String _envGoogleId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+  
+  // 2. ቁልፉን መርጦ ማዘጋጀት
+  static final String _googleClientId = _envGoogleId.isNotEmpty 
+      ? _envGoogleId 
+      : (dotenv.env['GOOGLE_CLIENT_ID'] ?? '');
 
   // የ Google Sign-In ኮንፊገሬሽን
   final gsis.GoogleSignIn _googleSignIn = gsis.GoogleSignIn(
     serverClientId: _googleClientId,
   );
 
-  /// የጎግል ሎግኢን ተግባር - ከኢንተርኔት ስህተት መከላከያ ጋር
   Future<User?> signInWithGoogle() async {
-    try {
-      // 1. መጀመሪያ ኢንተርኔት መኖሩን ቼክ ማድረግ (አማራጭ)
-      // ማሳሰቢያ፡ ዊንዶውስ ላይ ሎግኢን ካልፈለክ ይህን ሙሉ ፋንክሽን አትጠራውም
+    // ዊንዶውስ ላይ ጎግል ሎግኢን ሌላ መንገድ ስለሚፈልግ ለአሁኑ እንዘለዋለን
+    if (!kIsWeb && Platform.isWindows) {
+      debugPrint("Google Sign-In is not supported on Windows in this flow.");
+      return null;
+    }
 
+    try {
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
 
@@ -39,27 +43,25 @@ class AuthService {
       return response.user;
     } on SocketException {
       debugPrint("የኢንተርኔት ግንኙነት የለም! 🌐❌");
-      return null; // ኢንተርኔት ከሌለ ዝም ብሎ null ይመልሳል
+      return null;
     } catch (e) {
       debugPrint("Error during Google Sign-In: $e");
-      return null; // ስህተት ቢፈጠርም አፑ እንዳይዘጋ null ይመልሳል
+      return null;
     }
   }
 
-  /// ሎግ አውት ለማድረግ
   Future<void> signOut() async {
     try {
-      await _googleSignIn.signOut();
+      if (!kIsWeb && !Platform.isWindows) {
+        await _googleSignIn.signOut();
+      }
       await _supabase.auth.signOut();
     } catch (e) {
       debugPrint("Sign out error: $e");
     }
   }
 
-  /// የአሁኑን ተጠቃሚ ለማወቅ
-  /// ዊንዶውስ ላይ ኢንተርኔት ባይኖርም የተቀመጠ (Persisted) ሴሽን ካለ ያነባል
   User? get currentUser => _supabase.auth.currentUser;
 
-  /// ተጠቃሚው ገብቷል ወይስ አልገባም የሚለውን ለማረጋገጥ
   bool get isAuthenticated => _supabase.auth.currentSession != null;
 }
