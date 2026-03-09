@@ -33,12 +33,26 @@ void main() async {
     }
   }
 
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    // GitHub ላይ ሲሆን ፋይሉ ስለማይኖር እዚህ ጋር ዝም እንለዋለን
+    debugPrint("Info: .env file not found, using Environment variables");
+  }
 
-  // 2. Supabase Initialization (ከ .env እያነበበ)
+  // 2. Supabase Initialization (ከ GitHub Secrets ወይም ከ .env)
+  final String supabaseUrl = String.fromEnvironment('SUPABASE_URL').isNotEmpty
+      ? String.fromEnvironment('SUPABASE_URL')
+      : (dotenv.env['SUPABASE_URL'] ?? '');
+
+  final String supabaseAnonKey =
+      String.fromEnvironment('SUPABASE_ANON_KEY').isNotEmpty
+          ? String.fromEnvironment('SUPABASE_ANON_KEY')
+          : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
     ),

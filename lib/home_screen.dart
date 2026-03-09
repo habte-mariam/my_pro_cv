@@ -36,13 +36,29 @@ import 'files/pdf_compress_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. መጀመሪያ .env ፋይሉን መጫን አለብህ
-  await dotenv.load(fileName: ".env");
+  // 1. .env ፋይሉን ለመጫን መሞከር (ለ PC ስራ)
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    // GitHub ላይ ሲሆን ፋይሉ ስለማይኖር እዚህ ጋር ኤረሩን ዝም እንለዋለን
+    debugPrint(
+        "Info: .env file not found, using Environment variables for GitHub");
+  }
 
-  // 2. ከዚያ ከ .env ውስጥ ዳታውን እየሳቡ ማስጀመር
+  // 2. ቁልፎቹን መጀመሪያ ከ GitHub (Environment) ካልሆነ ከ .env መሳብ
+  final String supabaseUrl = String.fromEnvironment('SUPABASE_URL').isNotEmpty
+      ? String.fromEnvironment('SUPABASE_URL')
+      : (dotenv.env['SUPABASE_URL'] ?? '');
+
+  final String supabaseAnonKey =
+      String.fromEnvironment('SUPABASE_ANON_KEY').isNotEmpty
+          ? String.fromEnvironment('SUPABASE_ANON_KEY')
+          : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+
+  // 3. Supabase ማስጀመር
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   runApp(const MyApp());

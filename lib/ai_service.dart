@@ -6,10 +6,23 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AIService {
   // --- API Keys ---
-static final String _geminiKey = dotenv.env['GEMINI_KEY'] ?? '';
-  static final String _groqKey = dotenv.env['GROQ_KEY'] ?? '';
-  static final String _hfKey = dotenv.env['HF_KEY'] ?? '';
-  static final String _openAIKey = dotenv.env['OPENAI_KEY'] ?? '';
+  static final String _geminiKey =
+      String.fromEnvironment('GEMINI_KEY').isNotEmpty
+          ? String.fromEnvironment('GEMINI_KEY')
+          : (dotenv.env['GEMINI_KEY'] ?? '');
+
+  static final String _groqKey = String.fromEnvironment('GROQ_KEY').isNotEmpty
+      ? String.fromEnvironment('GROQ_KEY')
+      : (dotenv.env['GROQ_KEY'] ?? '');
+
+  static final String _hfKey = String.fromEnvironment('HF_KEY').isNotEmpty
+      ? String.fromEnvironment('HF_KEY')
+      : (dotenv.env['HF_KEY'] ?? '');
+
+  static final String _openAIKey =
+      String.fromEnvironment('OPENAI_KEY').isNotEmpty
+          ? String.fromEnvironment('OPENAI_KEY')
+          : (dotenv.env['OPENAI_KEY'] ?? '');
   static const String _systemInstruction =
       "You are an expert Human Career Consultant. Your goal is to rewrite the input into a natural, "
       "human-sounding professional narrative. "

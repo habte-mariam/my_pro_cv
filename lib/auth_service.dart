@@ -7,9 +7,15 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  // መጀመሪያ ከ GitHub (Environment) ካጣ ደግሞ ከ PC (.env) ይወስዳል
+  static final String _googleClientId =
+      String.fromEnvironment('GOOGLE_CLIENT_ID').isNotEmpty
+          ? String.fromEnvironment('GOOGLE_CLIENT_ID')
+          : (dotenv.env['GOOGLE_CLIENT_ID'] ?? '');
+
   // የ Google Sign-In ኮንፊገሬሽን
   final gsis.GoogleSignIn _googleSignIn = gsis.GoogleSignIn(
-    serverClientId: dotenv.env['GOOGLE_CLIENT_ID'],
+    serverClientId: _googleClientId,
   );
 
   /// የጎግል ሎግኢን ተግባር - ከኢንተርኔት ስህተት መከላከያ ጋር
