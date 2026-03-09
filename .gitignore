@@ -42,3 +42,4 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .env
+lib/admin_stats_page.dart
