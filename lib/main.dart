@@ -33,23 +33,22 @@ void main() async {
     }
   }
 
+  // 3. .env መጫን (ለ PC ስራ ብቻ)
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    // GitHub ላይ ሲሆን ፋይሉ ስለማይኖር እዚህ ጋር ዝም እንለዋለን
-    debugPrint("Info: .env file not found, using Environment variables");
+    debugPrint("Info: .env file not found, looking for Environment variables");
   }
 
-  // 2. Supabase Initialization (ከ GitHub Secrets ወይም ከ .env)
-  final String supabaseUrl = String.fromEnvironment('SUPABASE_URL').isNotEmpty
-      ? String.fromEnvironment('SUPABASE_URL')
-      : (dotenv.env['SUPABASE_URL'] ?? '');
+  // 4. ቁልፎቹን መሳብ (በጣም አስፈላጊው ክፍል እዚህ ጋር ነው!)
+  // ማሳሰቢያ፡ const የግድ ያስፈልጋል!
+  const String envUrl = String.fromEnvironment('SUPABASE_URL');
+  const String envKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  final String supabaseAnonKey =
-      String.fromEnvironment('SUPABASE_ANON_KEY').isNotEmpty
-          ? String.fromEnvironment('SUPABASE_ANON_KEY')
-          : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+  final String supabaseUrl = envUrl.isNotEmpty ? envUrl : (dotenv.env['SUPABASE_URL'] ?? '');
+  final String supabaseAnonKey = envKey.isNotEmpty ? envKey : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
 
+  // 5. Supabase ማስጀመር
   await Supabase.initialize(
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
@@ -58,22 +57,17 @@ void main() async {
     ),
   );
 
-  // 4. Deep Link Handling
+  // 6. Deep Link Handling
   final appLinks = AppLinks();
-
   appLinks.getInitialLink().then((uri) {
     if (uri != null) _handleDeepLink(uri);
-  }).catchError((e) {
-    debugPrint("Initial link error: $e");
-    return null;
   });
 
   appLinks.uriLinkStream.listen((uri) {
-    debugPrint('Link called: $uri');
     _handleDeepLink(uri);
   });
 
-  // 5. ዳታቤዝ እና ፎንቶችን ማስነሳት
+  // 7. ዳታቤዝ እና ፎንቶችን ማስነሳት
   await _initializeAppData();
 
   runApp(const MyApp());
