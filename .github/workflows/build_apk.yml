@@ -26,7 +26,8 @@ jobs:
 
       - name: Create Config File
         run: |
-          echo '{
+          cat <<EOF > config.json
+          {
             "GEMINI_KEY": "${{ secrets.GEMINI_KEY }}",
             "GROQ_KEY": "${{ secrets.GROQ_KEY }}",
             "HF_KEY": "${{ secrets.HF_KEY }}",
@@ -34,7 +35,8 @@ jobs:
             "GOOGLE_CLIENT_ID": "${{ secrets.GOOGLE_CLIENT_ID }}",
             "SUPABASE_URL": "${{ secrets.SUPABASE_URL }}",
             "SUPABASE_ANON_KEY": "${{ secrets.SUPABASE_ANON_KEY }}"
-          }' > config.json
+          }
+          EOF
 
       - name: Get dependencies
         run: flutter pub get
