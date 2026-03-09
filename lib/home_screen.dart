@@ -36,29 +36,33 @@ import 'files/pdf_compress_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. .env ፋይሉን ለመጫን መሞከር (ለ PC ስራ)
+  // 1. .env ፋይሉን ለመጫን መሞከር (ለ Local PC ስራ)
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    // GitHub ላይ ሲሆን ፋይሉ ስለማይኖር እዚህ ጋር ኤረሩን ዝም እንለዋለን
-    debugPrint(
-        "Info: .env file not found, using Environment variables for GitHub");
+    debugPrint("Info: .env file not found, using Environment variables");
   }
 
-  // 2. ቁልፎቹን መጀመሪያ ከ GitHub (Environment) ካልሆነ ከ .env መሳብ
-  final String supabaseUrl = String.fromEnvironment('SUPABASE_URL').isNotEmpty
-      ? String.fromEnvironment('SUPABASE_URL')
-      : (dotenv.env['SUPABASE_URL'] ?? '');
+  // 2. ቁልፎቹን መሳብ (በጣም ወሳኙ ክፍል!)
+  // ማሳሰቢያ፡ const የግድ ያስፈልጋል፣ አለበለዚያ GitHub ላይ የሰጠኸውን Key አያነብም
+  const String envUrl = String.fromEnvironment('SUPABASE_URL');
+  const String envKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  final String supabaseAnonKey =
-      String.fromEnvironment('SUPABASE_ANON_KEY').isNotEmpty
-          ? String.fromEnvironment('SUPABASE_ANON_KEY')
-          : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+  // ከ Environment ካጣ ወደ .env ይሄዳል
+  final String supabaseUrl = envUrl.isNotEmpty ? envUrl : (dotenv.env['SUPABASE_URL'] ?? '');
+  final String supabaseAnonKey = envKey.isNotEmpty ? envKey : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
 
-  // 3. Supabase ማስጀመር
+  // 3. Supabase ማስጀመር (ከመጀመሩ በፊት ባዶ አለመሆኑን ቼክ እናድርግ)
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+     debugPrint("CRITICAL ERROR: Supabase Keys are missing!");
+  }
+
   await Supabase.initialize(
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
   );
 
   runApp(const MyApp());
