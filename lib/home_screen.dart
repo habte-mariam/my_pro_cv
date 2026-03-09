@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // Screens
 import 'package:my_new_cv/about_screen.dart';
@@ -35,11 +36,14 @@ import 'files/pdf_compress_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Supabase Initialization
+  // 1. መጀመሪያ .env ፋይሉን መጫን አለብህ
+  await dotenv.load(fileName: ".env");
+
+  // 2. ከዚያ ከ .env ውስጥ ዳታውን እየሳቡ ማስጀመር
   await Supabase.initialize(
-      url: 'https://fktfokhkelroszuzvxck.supabase.co',
-      anonKey:
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrdGZva2hrZWxyb3N6dXp2eGNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTM0NzIsImV4cCI6MjA4NTI4OTQ3Mn0.-TO2_QY7dOvFe_t85IY9mIStOeB2D87yM5nQz7fZrlU');
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+  );
 
   runApp(const MyApp());
 }

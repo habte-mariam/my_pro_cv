@@ -2,16 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AIService {
   // --- API Keys ---
-  static const String _geminiKey = 'AIzaSyDtboIxgsjmgd7M1VqJ8cu-XejfvVOMvW4';
-  static const String _groqKey =
-      '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';
-  static const String _hfKey = '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';
-  static const String _openAIKey =
-      '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';
-
+static final String _geminiKey = dotenv.env['GEMINI_KEY'] ?? '';
+  static final String _groqKey = dotenv.env['GROQ_KEY'] ?? '';
+  static final String _hfKey = dotenv.env['HF_KEY'] ?? '';
+  static final String _openAIKey = dotenv.env['OPENAI_KEY'] ?? '';
   static const String _systemInstruction =
       "You are an expert Human Career Consultant. Your goal is to rewrite the input into a natural, "
       "human-sounding professional narrative. "

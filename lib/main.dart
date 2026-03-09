@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -32,11 +33,12 @@ void main() async {
     }
   }
 
-  // 3. Supabase Initialization
+  await dotenv.load(fileName: ".env");
+
+  // 2. Supabase Initialization (ከ .env እያነበበ)
   await Supabase.initialize(
-    url: 'https://fktfokhkelroszuzvxck.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrdGZva2hrZWxyb3N6dXp2eGNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTM0NzIsImV4cCI6MjA4NTI4OTQ3Mn0.-TO2_QY7dOvFe_t85IY9mIStOeB2D87yM5nQz7fZrlU',
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
     authOptions: const FlutterAuthClientOptions(
       authFlowType: AuthFlowType.pkce,
     ),

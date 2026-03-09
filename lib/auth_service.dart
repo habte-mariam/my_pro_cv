@@ -2,14 +2,14 @@ import 'dart:io';
 import 'package:google_sign_in/google_sign_in.dart' as gsis;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
   // የ Google Sign-In ኮንፊገሬሽን
   final gsis.GoogleSignIn _googleSignIn = gsis.GoogleSignIn(
-    serverClientId:
-        '816716631233-hddios9dpih39m6etubjico87rg2igun.apps.googleusercontent.com',
+    serverClientId: dotenv.env['GOOGLE_CLIENT_ID'],
   );
 
   /// የጎግል ሎግኢን ተግባር - ከኢንተርኔት ስህተት መከላከያ ጋር
