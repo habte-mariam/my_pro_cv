@@ -85,7 +85,7 @@ flutter:
 
   # Assets ሲመዘገቡ ከ 'assets:' በታች በትክክል መደርደር አለባቸው
   assets:
-    - .env
+    # - .env
     - assets/fonts/MaterialIcons-Regular.ttf
     - assets/app_icon.png
     - assets/google_logo.png
