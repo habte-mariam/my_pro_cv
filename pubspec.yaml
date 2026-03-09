@@ -1,0 +1,143 @@
+name: my_new_cv
+description: "A professional CV generator app"
+version: 1.0.0+1
+publish_to: "none"
+
+environment:
+  sdk: ^3.5.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0
+  sqflite_common_ffi_web: ^1.1.1
+  path: ^1.9.1
+  permission_handler: ^12.0.1
+  path_provider: ^2.1.5
+  cupertino_icons: ^1.0.8
+  image_picker: ^1.0.7
+  pdf: ^3.11.3
+  printing: ^5.11.1
+  dart_openai: ^6.1.1
+  supabase_flutter: ^2.12.0
+  google_sign_in: ^6.2.1
+  flutter_screenutil: ^5.9.0
+  battery_plus: ^7.0.0
+  connectivity_plus: ^7.0.0
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+  intl: ^0.20.2
+  google_fonts: ^8.0.1
+  url_launcher: ^6.3.2
+  http: ^1.2.0
+  package_info_plus: ^9.0.0
+  share_plus: ^12.0.1
+  device_info_plus: ^12.3.0
+  intl_phone_field: ^3.2.0
+  shared_preferences: ^2.5.4
+  open_filex: ^4.7.0
+  flutter_downloader: ^1.11.6
+  flutter_cache_manager: ^3.4.1
+  location: ^8.0.1
+  speech_to_text: ^7.3.0
+  google_generative_ai: ^0.4.7
+  file_picker: ^10.3.10
+  syncfusion_flutter_pdf: ^32.2.4
+  flutter_image_compress: ^2.4.0
+  #open_file_plus: any
+  image: ^4.5.4
+  android_intent_plus: ^6.0.0
+  pdfx: ^2.9.2
+  gal: ^2.3.2
+  google_sign_in_all_platforms: ^1.2.1
+  app_links: ^6.4.1
+  json_annotation: ^4.11.0
+  build_runner: ^2.12.2
+  json_serializable: ^6.13.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.0
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#ffffff"
+  adaptive_icon_foreground: "assets/app_icon.png"
+
+# flutter_native_splash:
+#   color: "#3F51B5"
+#   image: "assets/app_icon.png"
+#   android_12:
+#     image: "assets/app_icon.png"
+#     color: "#3F51B5"
+#   fullscreen: true
+
+flutter:
+  uses-material-design: true
+
+  # Assets ሲመዘገቡ ከ 'assets:' በታች በትክክል መደርደር አለባቸው
+  assets:
+    - assets/fonts/MaterialIcons-Regular.ttf
+    - assets/app_icon.png
+    - assets/google_logo.png
+    - assets/fonts/ # የፎንት ፎልደሩን ሙሉ በሙሉ እዚህ መጥቀስ ለጥንቃቄ ይረዳል
+
+  fonts:
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/JetBrainsMono-Italic.ttf
+          style: italic
+        - asset: assets/fonts/JetBrainsMono-ExtraBold.ttf
+          weight: 800
+
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+
+    - family: Arimo
+      fonts:
+        - asset: assets/fonts/Arimo-Regular.ttf
+        - asset: assets/fonts/Arimo-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Arimo-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Arimo-BoldItalic.ttf
+          weight: 700
+          style: italic
+
+    - family: NotoSerif
+      fonts:
+        - asset: assets/fonts/NotoSerif-Regular.ttf
+        - asset: assets/fonts/NotoSerif-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/NotoSerif-Italic.ttf
+          style: italic
+        - asset: assets/fonts/NotoSerif-BoldItalic.ttf
+          weight: 700
+          style: italic
+
+    - family: NotoSerifEthiopic
+      fonts:
+        - asset: assets/fonts/NotoSerifEthiopic-VariableFont_wdth,wght.ttf
+
+    - family: Times
+      fonts:
+        - asset: assets/fonts/times_regular.ttf
+        - asset: assets/fonts/times_bold.ttf
+          weight: 700
+
+    - family: Abyssinica
+      fonts:
+        - asset: assets/fonts/AbyssinicaSIL-Regular.ttf
