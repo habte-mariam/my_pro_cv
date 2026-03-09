@@ -26,17 +26,25 @@ jobs:
 
       - name: Create Config File
         run: |
-          cat <<EOF > config.json
-          {
-            "GEMINI_KEY": "${{ secrets.GEMINI_KEY }}",
-            "GROQ_KEY": "${{ secrets.GROQ_KEY }}",
-            "HF_KEY": "${{ secrets.HF_KEY }}",
-            "OPENAI_KEY": "${{ secrets.OPENAI_KEY }}",
-            "GOOGLE_CLIENT_ID": "${{ secrets.GOOGLE_CLIENT_ID }}",
-            "SUPABASE_URL": "${{ secrets.SUPABASE_URL }}",
-            "SUPABASE_ANON_KEY": "${{ secrets.SUPABASE_ANON_KEY }}"
-          }
-          EOF
+          # ቁልፎቹን ከአላስፈላጊ ክፍት ቦታዎች ያጸዳቸዋል (Trim)
+          GEMINI_KEY=$(echo "${{ secrets.GEMINI_KEY }}" | tr -d '\n' | tr -d '\r')
+          GROQ_KEY=$(echo "${{ secrets.GROQ_KEY }}" | tr -d '\n' | tr -d '\r')
+          HF_KEY=$(echo "${{ secrets.HF_KEY }}" | tr -d '\n' | tr -d '\r')
+          OPENAI_KEY=$(echo "${{ secrets.OPENAI_KEY }}" | tr -d '\n' | tr -d '\r')
+          GOOGLE_CLIENT_ID=$(echo "${{ secrets.GOOGLE_CLIENT_ID }}" | tr -d '\n' | tr -d '\r')
+          SUPABASE_URL=$(echo "${{ secrets.SUPABASE_URL }}" | tr -d '\n' | tr -d '\r')
+          SUPABASE_ANON_KEY=$(echo "${{ secrets.SUPABASE_ANON_KEY }}" | tr -d '\n' | tr -d '\r')
+
+          # አሁን JSON ፋይሉን በጥንቃቄ ይፈጥራል
+          echo "{" > config.json
+          echo "  \"GEMINI_KEY\": \"$GEMINI_KEY\"," >> config.json
+          echo "  \"GROQ_KEY\": \"$GROQ_KEY\"," >> config.json
+          echo "  \"HF_KEY\": \"$HF_KEY\"," >> config.json
+          echo "  \"OPENAI_KEY\": \"$OPENAI_KEY\"," >> config.json
+          echo "  \"GOOGLE_CLIENT_ID\": \"$GOOGLE_CLIENT_ID\"," >> config.json
+          echo "  \"SUPABASE_URL\": \"$SUPABASE_URL\"," >> config.json
+          echo "  \"SUPABASE_ANON_KEY\": \"$SUPABASE_ANON_KEY\"" >> config.json
+          echo "}" >> config.json
 
       - name: Get dependencies
         run: flutter pub get
