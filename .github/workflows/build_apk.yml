@@ -1,9 +1,10 @@
 name: Flutter Build APK
 
 on:
-  push:
-    branches:
-      - main 
+  workflow_dispatch: # 👈 ይህ በእጅህ (Manual) ብቻ Build እንድታደርግ ይፈቅድልሃል
+  # push:           # 👈 አውቶማቲክ እንዳይሆን push የሚለውን አጥፍተነዋል
+  #   branches:
+  #     - main
 
 jobs:
   build:
@@ -35,7 +36,7 @@ jobs:
           SUPABASE_URL=$(echo "${{ secrets.SUPABASE_URL }}" | tr -d '\n' | tr -d '\r')
           SUPABASE_ANON_KEY=$(echo "${{ secrets.SUPABASE_ANON_KEY }}" | tr -d '\n' | tr -d '\r')
 
-          # አሁን JSON ፋይሉን በጥንቃቄ ይፈጥራል
+          # አሁን JSON ፋይሉን በጥንቃቄ ይፈጥራል (ልክ አንተ ባልከው መንገድ)
           echo "{" > config.json
           echo "  \"GEMINI_KEY\": \"$GEMINI_KEY\"," >> config.json
           echo "  \"GROQ_KEY\": \"$GROQ_KEY\"," >> config.json
