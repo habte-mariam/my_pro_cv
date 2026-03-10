@@ -40,12 +40,16 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
 
   /// ክላውድ ላይ ሴቭ ለማድረግ
   Future<void> _autoSyncToCloud() async {
-    if (_hasSynced || _isSyncing) return;
-    if (mounted) setState(() => _isSyncing = true);
+    // Robustness: ገጹ ከተዘጋ (unmounted) ወይም ስራ ላይ ከሆነ አቁም
+    if (_hasSynced || _isSyncing || !mounted) return;
+
+    setState(() => _isSyncing = true);
 
     try {
+      // ለደካማ ስልኮች ትንሽ የሲፒዩ እረፍት መስጠት
       await Future.delayed(const Duration(milliseconds: 500));
       await DatabaseService().saveCompleteCv(widget.cvModel);
+
       if (mounted) {
         setState(() {
           _hasSynced = true;
@@ -53,14 +57,14 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isSyncing = false);
       debugPrint("Cloud Sync Failed: $e");
+      if (mounted) setState(() => _isSyncing = false);
     }
   }
 
   /// ፒዲኤፉን ዳውንሎድ ሲያደርጉ ዳታቤዝ ላይ መመዝገብ
   Future<void> _handleDownload() async {
-    if (_currentPdfBytes == null) return;
+    if (_currentPdfBytes == null || !mounted) return;
 
     PdfGenerator.showLoadingDialog(context, "Saving PDF to Downloads...");
 
@@ -74,17 +78,16 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
         fullFileName,
       );
 
-      if (savedPath != null) {
+      if (savedPath != null && mounted) {
         await DatabaseHelper.instance
             .insertSavedCv("$fullFileName.pdf", savedPath);
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text("CV Successfully Saved!"),
-              backgroundColor: Colors.green));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("CV Successfully Saved!"),
+            backgroundColor: Colors.green));
       }
     } finally {
+      // Robustness: ገጹ መኖሩን አረጋግጠህ ዳያሎጉን ዝጋ
       if (mounted && Navigator.canPop(context)) {
         Navigator.pop(context);
       }
@@ -94,7 +97,7 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // ይበልጥ ንጹህ የሆነ ዳራ
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: const Text("CV Preview",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
@@ -128,12 +131,19 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
         key: ValueKey(
             '${widget.templateIndex}-${widget.primaryColor.toARGB32()}-${widget.fontFamily}-${widget.scale}'),
 
-        // --- Gridline ለማጥፋትና ዲዛይኑን ለማስተካከል የተጨመሩ ---
-        maxPageWidth: 700,
+        // --- Performance: maxPageWidth ዝቅ ማድረግ ለ J3 ራም (RAM) ይረዳል ---
+        maxPageWidth: 650,
         build: (PdfPageFormat format) async {
           try {
+            // ገጹ ሲቀየር አኒሜሽኑ እንዳይቆራረጥ (No Lag) ትንሽ መጠበቅ
+            await Future.delayed(const Duration(milliseconds: 300));
+
             await AppFonts.loadAllFontBytes();
-            final selectedDesign = CvDesign.values[widget.templateIndex];
+
+            // Safety: Index out of range እንዳይሆን መከላከል
+            final selectedDesign =
+                CvDesign.values[widget.templateIndex % CvDesign.values.length];
+
             final pdfPrimaryColor =
                 PdfColor.fromInt(widget.primaryColor.toARGB32());
 
@@ -149,6 +159,7 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
             final pdfBytes = await doc.save();
             _currentPdfBytes = pdfBytes;
 
+            // Robustness: Build ተጠናቆ ስክሪኑ ላይ ከታየ በኋላ ሲንክ እንዲጀምር ማድረግ
             if (!_hasSynced && !_isSyncing) {
               Future.microtask(() => _autoSyncToCloud());
             }
@@ -161,10 +172,9 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
           }
         },
 
-        // --- UI ማስተካከያዎች ---
         initialPageFormat: PdfPageFormat.a4,
         canChangePageFormat: false,
-        canDebug: false, // 👈 ይህ Gridline እና ሰማያዊ መስመሮችን ያጠፋል
+        canDebug: false, // Gridline ያጠፋል
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
         pdfFileName:
             "${widget.cvModel.firstName}_${widget.cvModel.lastName}_CV.pdf",
@@ -172,7 +182,6 @@ class _CvPreviewScreenState extends State<CvPreviewScreen> {
         allowPrinting: true,
         allowSharing: !kIsWeb,
 
-        // የገጽ ዳራውን ነጭ በማድረግ መስመሮቹን መደበቅ
         onPrinted: (context) => debugPrint("Printed"),
         onShared: (context) => debugPrint("Shared"),
       ),
