@@ -137,7 +137,7 @@ class DatabaseService {
       if (localData != null) {
         CvModel cv = CvModel();
         cv.fromMap(localData);
-        cv.id = user.id; // የ Supabase UIDን እንስጠው
+        cv.profileid = user.id; // የ Supabase UIDን እንስጠው
 
         debugPrint("Data fully synced and re-loaded from SQLite ✅");
         return cv;

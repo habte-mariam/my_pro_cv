@@ -46,7 +46,7 @@ class _CertificatesFormState extends State<CertificatesForm> {
     setState(() => _isSaving = true);
 
     try {
-      await DatabaseHelper.instance.clearCertificates(widget.cv.id);
+      await DatabaseHelper.instance.clearCertificates(widget.cv.profileid);
 
       for (var cert in widget.cv.certificates) {
         Map<String, dynamic> certToSave = Map<String, dynamic>.from(cert);
@@ -55,7 +55,7 @@ class _CertificatesFormState extends State<CertificatesForm> {
         certToSave.remove('id');
 
         // 2. ትክክለኛውን profileId መመደብ
-        certToSave['profileid'] = widget.cv.id;
+        certToSave['profileid'] = widget.cv.profileid;
 
         await DatabaseHelper.instance.addCertificate(certToSave);
       }

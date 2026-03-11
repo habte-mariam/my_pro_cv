@@ -15,7 +15,7 @@ class CvModel {
   @JsonKey(
       name: 'profileid',
       defaultValue: '') // ለ Supabase እና ለ SQLite 'profileid' ወሳኝ ነው
-  String id;
+  String profileid;
 
   @JsonKey(defaultValue: '')
   String firstName;
@@ -75,16 +75,16 @@ class CvModel {
   @JsonKey(defaultValue: [])
   List<Map<String, dynamic>> certificates;
 
-@JsonKey(name: 'user_references', defaultValue: [])
+  @JsonKey(name: 'user_references', defaultValue: [])
 // ignore: non_constant_identifier_names
-List<Map<String, dynamic>> user_references; // ስሙን ወደ ድሮው መልሰው
+  List<Map<String, dynamic>> user_references; // ስሙን ወደ ድሮው መልሰው
 
   // Layout order logic
   @JsonKey(name: 'layoutOrder')
   dynamic rawLayoutOrder;
 
   CvModel({
-    this.id = '',
+    this.profileid = '',
     this.firstName = '',
     this.lastName = '',
     this.jobTitle = '',
@@ -138,8 +138,10 @@ List<Map<String, dynamic>> user_references; // ስሙን ወደ ድሮው መል
 
   // --- JSON Serialization ---
   factory CvModel.fromJson(Map<String, dynamic> json) {
-    // profileid እና id መምታታት ስለሚችሉ እዚህ ጋር እናስተካክላለን
-    if (json['profileid'] != null) json['id'] = json['profileid'];
+    // 🎯 ማስተካከያ 2: 'id' ሆኖ ቢመጣ እንኳን ወደ 'profileid' ቀይረው
+    if (json['id'] != null && json['profileid'] == null) {
+      json['profileid'] = json['id'].toString();
+    }
     return _$CvModelFromJson(json);
   }
 
@@ -148,7 +150,7 @@ List<Map<String, dynamic>> user_references; // ስሙን ወደ ድሮው መል
   // ለ ድሮው ኮድህ compatibility እንዲኖረው (Optional)
   void fromMap(Map<String, dynamic> map) {
     final newModel = CvModel.fromJson(map);
-    id = newModel.id;
+    profileid = newModel.profileid;
     firstName = newModel.firstName;
     lastName = newModel.lastName;
     jobTitle = newModel.jobTitle;

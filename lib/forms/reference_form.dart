@@ -46,40 +46,59 @@ class _ReferenceFormState extends State<ReferenceForm> {
   }
 
   Future<void> _handleManualSave() async {
+    if (!mounted) return;
     setState(() => _isSaving = true);
+
     try {
-      // 1. መጀመሪያ በ UUID String ማጽዳት
-      await DatabaseHelper.instance.clearReferences(widget.cv.id);
+      final db = DatabaseHelper.instance;
+      // 1. ID ባዶ አለመሆኑን ማረጋገጥ (UUID String)
+      final String profileId = widget.cv.profileid.toString().trim();
 
-      // 2. String ስለሆነ ባዶ አለመሆኑን ብቻ ቼክ ማድረግ (ከ -1 ጋር አታወዳድር)
-      if (widget.cv.id.toString().isNotEmpty) {
-        // ማሳሰቢያ፡ DatabaseHelper ውስጥ ይሄ ሜተድ String መቀበሉን አረጋግጥ
-        await DatabaseHelper.instance.updateProfileSummary(widget.cv.id, widget.cv.summary);
+      if (profileId.isEmpty) {
+        throw Exception(
+            "Profile ID (UUID) is missing. Please sync with cloud first.");
+      }
 
-        for (var ref in widget.cv.user_references) {
-          await DatabaseHelper.instance.addReference({
-            'profileid': widget.cv.id, // ይህ UUID String ነው
-            'name': ref['name']?.toString() ?? '',
-            'job': ref['job']?.toString() ?? '',
-            'organization': ref['organization']?.toString() ?? '',
-            'phone': ref['phone']?.toString() ?? '',
-            'email': ref['email']?.toString() ?? '',
-          });
-        }
+      // 2. መጀመሪያ የቆዩትን ሪፈረንሶች በ ID ማጽዳት
+      await db.clearReferences(profileId);
 
-        widget.onDataChanged?.call();
+      // 3. የ Profile Summary ማዘመን
+      await db.updateProfileSummary(profileId, widget.cv.summary);
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("All changes saved successfully!"),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+      // 4. አዳዲስ ሪፈረንሶችን አንድ በአንድ ማስገባት
+      // እዚህ ጋር user_references ሊስቱ 'Unmodifiable' እንዳይሆን ጥንቃቄ አድርግ
+      for (var ref in widget.cv.user_references) {
+        await db.addReference({
+          'profileid': profileId,
+          'name': ref['name']?.toString() ?? '',
+          'job': ref['job']?.toString() ?? '',
+          'organization': ref['organization']?.toString() ?? '',
+          'phone': ref['phone']?.toString() ?? '',
+          'email': ref['email']?.toString() ?? '',
+        });
+      }
+
+      widget.onDataChanged?.call();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("All changes saved successfully! ✅"),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating, // ለተሻለ UI
+          ),
+        );
       }
     } catch (e) {
       debugPrint("Save Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Save Failed: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

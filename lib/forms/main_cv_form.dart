@@ -52,7 +52,7 @@ class _MainCvFormState extends State<MainCvForm> {
 
         if (cloudData != null) {
           final data = _cvModel.toJson();
-          _cvModel.id = cloudData.id;
+          _cvModel.profileid = cloudData.profileid;
           await DatabaseHelper.instance.syncFullDataToLocal(data);
 
           setState(() {
@@ -188,7 +188,7 @@ class _MainCvFormState extends State<MainCvForm> {
         );
       case 2:
         return EducationForm(
-          key: ValueKey("${_cvModel.id}_${_cvModel.education.length}"),
+          key: ValueKey("${_cvModel.profileid}_${_cvModel.education.length}"),
           cv: _cvModel,
           onDataChanged: () => setState(() {}),
         );

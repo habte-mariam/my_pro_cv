@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:app_links/app_links.dart';
+import 'package:window_manager/window_manager.dart';
 
 // Internal Imports
 import 'database_helper.dart';
@@ -15,65 +16,85 @@ import 'splash_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 
-// Global Notifier for Theme and Font changes
 final ValueNotifier<Map<String, dynamic>> appSettingsNotifier =
     ValueNotifier({'themeColor': 0xFF1E293B, 'fontFamily': 'JetBrains Mono'});
 
-void main() async {
-  // 1. Flutter Engine ዝግጁ መሆኑን ማረጋገጥ
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. ለዊንዶውስ ዲፕ ሊንክ ምዝገባ
+// 1. የዊንዶውስ መስኮት መጠን መቆለፊያ
   if (!kIsWeb && Platform.isWindows) {
-    try {
-      final appLinks = AppLinks();
-      await appLinks.getInitialLink();
-    } catch (e) {
-      debugPrint("Windows protocol registration error: $e");
-    }
+    await windowManager.ensureInitialized();
+
+    WindowOptions windowOptions = const WindowOptions(
+      size: Size(370, 550),
+      minimumSize: Size(370, 550),
+      maximumSize: Size(370, 550),
+      center: false, // 👈 ማእከል እንዲሆን አንገፋውም
+      title: "CV Maker Pro",
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle:
+          TitleBarStyle.normal, // 👈 Minimize, Maximize እና Close እንዲታዩ
+    );
+
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      // 📍 አፑ እንዲጀምር የምትፈልገው ቦታ (X እና Y Coordinate)
+      // ለምሳሌ ከላይ ጥግ ላይ እንዲሆን (x: 10, y: 10)
+      await windowManager.setPosition(const Offset(950, 50));
+
+      await windowManager.show();
+      await windowManager.focus();
+
+      // 🔒 መጠኑ እንዳይቀየር መቆለፍ
+      await windowManager.setResizable(false);
+
+      // 🔝 ሁልጊዜ ከሌሎች ዊንዶውስ በላይ እንዲሆን (ከፈለግክ ብቻ)
+      await windowManager.setAlwaysOnTop(true);
+    });
   }
 
-  // 3. .env መጫን (ለ PC ስራ ብቻ)
+  // 2. .env መጫን
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    debugPrint("Info: .env file not found, looking for Environment variables");
+    debugPrint("Info: .env file not found, using Environment variables");
   }
 
-  // 4. ቁልፎቹን መሳብ (በጣም አስፈላጊው ክፍል እዚህ ጋር ነው!)
-  // ማሳሰቢያ፡ const የግድ ያስፈልጋል!
+  // 3. Supabase ማዘጋጀት
   const String envUrl = String.fromEnvironment('SUPABASE_URL');
   const String envKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  final String supabaseUrl = envUrl.isNotEmpty ? envUrl : (dotenv.env['SUPABASE_URL'] ?? '');
-  final String supabaseAnonKey = envKey.isNotEmpty ? envKey : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+  final String supabaseUrl =
+      envUrl.isNotEmpty ? envUrl : (dotenv.env['SUPABASE_URL'] ?? '');
+  final String supabaseAnonKey =
+      envKey.isNotEmpty ? envKey : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
 
-  // 5. Supabase ማስጀመር
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-    authOptions: const FlutterAuthClientOptions(
-      authFlowType: AuthFlowType.pkce,
-    ),
-  );
+  if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty) {
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+      authOptions:
+          const FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
+    );
+  }
 
-  // 6. Deep Link Handling
+  // 4. Deep Link Handling
   final appLinks = AppLinks();
   appLinks.getInitialLink().then((uri) {
     if (uri != null) _handleDeepLink(uri);
   });
+  appLinks.uriLinkStream.listen((uri) => _handleDeepLink(uri));
 
-  appLinks.uriLinkStream.listen((uri) {
-    _handleDeepLink(uri);
-  });
-
-  // 7. ዳታቤዝ እና ፎንቶችን ማስነሳት
+  // 5. ዳታቤዝ እና ፎንቶችን ማስነሳት
   await _initializeAppData();
 
   runApp(const MyApp());
 }
 
+// Deep Link በሥርዓት የሚያስተናግድ ፋንክሽን
 void _handleDeepLink(Uri uri) async {
+  debugPrint("Deep link received: $uri");
   if (uri.toString().contains('login-callback') ||
       uri.fragment.contains('access_token')) {
     try {
@@ -85,13 +106,13 @@ void _handleDeepLink(Uri uri) async {
   }
 }
 
+// ዳታቤዝ እና ፎንቶችን መጫኛ
 Future<void> _initializeAppData() async {
   try {
     await AppFonts.loadAllFontBytes();
     AppFonts.initFromBytes(AppFonts.fontBytesMap);
 
     final savedSettings = await DatabaseHelper.instance.getSettings();
-
     if (savedSettings.isNotEmpty) {
       appSettingsNotifier.value = {
         'themeColor': savedSettings['themeColor'] ?? 0xFF1E293B,

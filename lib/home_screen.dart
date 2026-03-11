@@ -1,8 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:my_new_cv/database_helper.dart';
 import 'package:my_new_cv/forms/main_cv_form.dart';
+import 'package:my_new_cv/profile_service.dart';
 import 'package:package_info_plus/package_info_plus.dart' show PackageInfo;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
@@ -49,12 +52,14 @@ void main() async {
   const String envKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
   // ከ Environment ካጣ ወደ .env ይሄዳል
-  final String supabaseUrl = envUrl.isNotEmpty ? envUrl : (dotenv.env['SUPABASE_URL'] ?? '');
-  final String supabaseAnonKey = envKey.isNotEmpty ? envKey : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
+  final String supabaseUrl =
+      envUrl.isNotEmpty ? envUrl : (dotenv.env['SUPABASE_URL'] ?? '');
+  final String supabaseAnonKey =
+      envKey.isNotEmpty ? envKey : (dotenv.env['SUPABASE_ANON_KEY'] ?? '');
 
   // 3. Supabase ማስጀመር (ከመጀመሩ በፊት ባዶ አለመሆኑን ቼክ እናድርግ)
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
-     debugPrint("CRITICAL ERROR: Supabase Keys are missing!");
+    debugPrint("CRITICAL ERROR: Supabase Keys are missing!");
   }
 
   await Supabase.initialize(
@@ -120,9 +125,21 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _initializeData();
+    _loadLastEmail();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateUserLogsAndStats();
     });
+  }
+
+  Future<void> _loadLastEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastEmail = prefs.getString('last_searched_email') ?? '';
+    if (lastEmail.isNotEmpty) {
+      setState(() {
+        _emailSearchController.text = lastEmail;
+      });
+    }
   }
 
   Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
@@ -134,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _updateUserLogsAndStats() async {
+    await Future.delayed(const Duration(seconds: 1));
     try {
       final user = _supabase.auth.currentUser;
       final DeviceInfoPlugin deviceInfoPlugin = DeviceInfoPlugin();
@@ -141,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
       final connectivityResult = await (Connectivity().checkConnectivity());
 
+      // 1. የቦታ መረጃ ማግኘት (IP-Based)
       String systemLocation = "Unknown";
       try {
         final locResponse = await http
@@ -150,17 +169,13 @@ class _HomeScreenState extends State<HomeScreen> {
           final data = jsonDecode(locResponse.body);
           systemLocation = "${data['city']}, ${data['country']}";
         }
-      } catch (_) {}
+      } catch (_) {
+        debugPrint("Location fetch failed");
+      }
 
+      // 2. የስልክ ሞዴል እና OS ስሪት ማግኘት
       String model = "Unknown";
       String osVersion = "Unknown";
-      int batteryLevel = await battery.batteryLevel;
-      String internetStatus =
-          connectivityResult.contains(ConnectivityResult.none)
-              ? "Offline"
-              : (connectivityResult.contains(ConnectivityResult.wifi)
-                  ? "WiFi"
-                  : "Mobile/Other");
 
       if (!kIsWeb) {
         if (Platform.isAndroid) {
@@ -174,20 +189,37 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
+      // 3. የባትሪ እና የኢንተርኔት ሁኔታ
+      int batteryLevel = await battery.batteryLevel;
+      String internetStatus =
+          connectivityResult.contains(ConnectivityResult.none)
+              ? "Offline"
+              : (connectivityResult.contains(ConnectivityResult.wifi)
+                  ? "WiFi"
+                  : "Mobile/Other");
+
+      // 4. መለያዎችን ማዘጋጀት (ያልገባ ተጠቃሚ ቢሆንም እንኳ)
+      // 🎯 ቁልፍ ለውጥ፡ ተጠቃሚው ካልገባ 'guest_user' የሚል ስም እንሰጠዋለን
+      final String finalEmail = user?.email ?? "guest_user";
+      final String finalName =
+          user?.userMetadata?['full_name'] ?? user?.email ?? "Guest User";
+
+      // 5. ወደ Supabase መላክ (Upsert)
       await _supabase.from('user_logs').upsert({
-        'user_id': user?.id,
-        'uid': user?.id,
-        'name': user?.userMetadata?['full_name'] ?? user?.email ?? "Guest",
-        'action': 'app_open',
-        'model': model,
+        'user_id': user?.id, // Login ካላደረገ null ይሆናል
+        'email': finalEmail, // መለያ 1
+        'name': finalName,
+        'model': model, // መለያ 2
         'os_version': osVersion,
         'battery': "$batteryLevel%",
         'internet': internetStatus,
         'location': systemLocation,
         'app_version': packageInfo.version,
-        'cv_profile_address': userCv?.address ?? "Not Filled",
         'last_seen': DateTime.now().toIso8601String(),
-      }, onConflict: 'user_id');
+        'action': 'app_open',
+      }, onConflict: 'email, model'); // 🎯 በኢሜይል እና በሞዴል ጥምረት ይለያቸዋል
+
+      debugPrint("Sync Success for: $finalEmail ($model)");
     } catch (e) {
       debugPrint("Sync Error: $e");
     }
@@ -256,6 +288,56 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) _refreshData();
   }
 
+  final TextEditingController _emailSearchController = TextEditingController();
+  bool _isSearching = false;
+
+  void _handleProfileSearch() async {
+    final email = _emailSearchController.text.trim();
+    if (email.isEmpty) return;
+
+    setState(() => _isSearching = true);
+
+    // 1. ከ Supabase ፈልጎ ወደ SQLite Sync ያደርጋል
+    final cloudResult = await ProfileService.searchAndSyncByEmail(email);
+
+    if (cloudResult != null) {
+      final fullLocalData =
+          await DatabaseHelper.instance.getFullProfile(email: email);
+
+      if (mounted && fullLocalData != null) {
+        // ✅ 2. ሰርች የተደረገውን ኢሜይል ለወደፊት እንዲቀመጥ ሴቭ እናደርጋለን
+        await _saveLastSearchedEmail(email);
+
+        setState(() {
+          userCv = CvModel.fromJson(fullLocalData);
+          _isSearching = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Profile for ${userCv?.firstName} loaded! ✅"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _emailSearchController.clear();
+        _updateUserLogsAndStats();
+      }
+    } else {
+      // ... (No profile found logic)
+      if (mounted) {
+        setState(() => _isSearching = false);
+        // SnackBar logic
+      }
+    }
+  }
+
+// 💾 ኢሜይሉን ሴቭ ማድረጊያ ረዳት ፈንክሽን
+  Future<void> _saveLastSearchedEmail(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_searched_email', email);
+    debugPrint("Last searched email saved: $email");
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color primaryColor = Color(_primaryColorValue);
@@ -264,18 +346,72 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text("CV Builder Pro",
-            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16.sp)),
         backgroundColor: primaryColor,
         foregroundColor: contentColor,
         elevation: 0,
+        // የ AppBar ቁመት ለፎቶውና ለስሙ እንዲበቃ 90.h አድርገነዋል
+        toolbarHeight: 90.h,
         centerTitle: true,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: Icon(Icons.menu_rounded, size: 22.sp),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        // 🎯 ምስሉን እና ስሙን (ርዕሱን) እዚህ title ውስጥ አዋህደነዋል
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () {
+                if (++_adminTapCount >= 7) {
+                  _adminTapCount = 0;
+                  _navigateTo(const AdminStatsPage());
+                }
+              },
+              child: CircleAvatar(
+                radius: 24.r, // መጠኑ ቆጥብ ያለ ነው
+                backgroundColor: Colors.white24,
+                backgroundImage: (userCv?.profileImagePath != null &&
+                        userCv!.profileImagePath.isNotEmpty &&
+                        File(userCv!.profileImagePath).existsSync())
+                    ? FileImage(File(userCv!.profileImagePath))
+                    : null,
+                child: (userCv?.profileImagePath == null ||
+                        userCv!.profileImagePath.isEmpty ||
+                        !File(userCv!.profileImagePath).existsSync())
+                    ? Icon(CupertinoIcons.person_fill,
+                        color: Colors.white, size: 22.sp)
+                    : null,
+              ),
+            ),
+            SizedBox(height: 4.h),
+            Text(
+              // ስም ካለ ስሙን፣ ከሌለ ደግሞ "CV Builder Pro" ያሳያል
+              (userCv?.firstName != null && userCv!.firstName.isNotEmpty)
+                  ? "${userCv!.firstName} ${userCv!.lastName}"
+                  : "CV Builder Pro",
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: Icon(CupertinoIcons.share, size: 22.sp),
+            icon: Icon(CupertinoIcons.share, size: 20.sp),
             onPressed: _shareApp,
           ),
         ],
+        // የ AppBarሩን የታችኛውን ጫፍ ክብ (Curved) ለማድረግ
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(25.r),
+            bottomRight: Radius.circular(25.r),
+          ),
+        ),
       ),
       drawer: _buildDrawer(primaryColor, contentColor),
       body: _isLoading
@@ -286,7 +422,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   children: [
-                    _buildModernHeader(primaryColor, contentColor),
+                    // ⚠️ _buildModernHeader እዚህ ጋር አያስፈልግም (ከላይ ገብቷል)
+                    _buildSearchField(),
                     _buildFeatureHint(),
                   ],
                 ),
@@ -297,66 +434,47 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildModernHeader(Color primaryColor, Color textColor) {
-    // ስም ሲታይ ቅድሚያ ከክላውድ ለወረደው ዳታ ይሰጣል
-    final String name =
-        userCv?.firstName != null && userCv!.firstName.isNotEmpty
-            ? "${userCv!.firstName} ${userCv!.lastName}"
-            : (_supabase.auth.currentUser?.userMetadata?['full_name'] ??
-                "Welcome!");
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(20.w, 30.h, 20.w, 40.h),
-      decoration: BoxDecoration(
-        color: primaryColor,
-        borderRadius: BorderRadius.only(
-            bottomLeft: Radius.circular(30.r),
-            bottomRight: Radius.circular(30.r)),
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () {
-              if (++_adminTapCount >= 7) {
-                _adminTapCount = 0;
-                _navigateTo(const AdminStatsPage());
-              }
-            },
-            child: CircleAvatar(
-              radius: 35.r,
-              backgroundColor: Colors.white24,
-              backgroundImage: (userCv?.profileImagePath != null &&
-                      userCv!.profileImagePath.isNotEmpty &&
-                      File(userCv!.profileImagePath).existsSync())
-                  ? FileImage(File(userCv!.profileImagePath))
-                  : null,
-              child: (userCv?.profileImagePath == null ||
-                      userCv!.profileImagePath.isEmpty ||
-                      !File(userCv!.profileImagePath).existsSync())
-                  ? Icon(CupertinoIcons.person_fill,
-                      color: Colors.white, size: 35.sp)
-                  : null,
+  Widget _buildSearchField() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 20.w),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
+          ],
+        ),
+        child: TextField(
+          controller: _emailSearchController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            hintText: "Search CV by Email...",
+            hintStyle: TextStyle(fontSize: 14.sp, color: Colors.grey),
+            prefixIcon: Icon(CupertinoIcons.search,
+                size: 20.sp, color: Colors.blueGrey),
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(vertical: 15.h),
+            suffixIcon: _isSearching
+                ? SizedBox(
+                    width: 20.w,
+                    height: 20.h,
+                    child: const Padding(
+                      padding: EdgeInsets.all(10.0),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ))
+                : IconButton(
+                    icon: Icon(Icons.arrow_forward_ios,
+                        size: 18.sp, color: Colors.blue),
+                    onPressed: _handleProfileSearch,
+                  ),
           ),
-          SizedBox(width: 15.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Hello,",
-                    style: TextStyle(color: Colors.white70, fontSize: 14.sp)),
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20.sp,
-                        fontWeight: FontWeight.w800)),
-              ],
-            ),
-          ),
-        ],
+          onSubmitted: (_) => _handleProfileSearch(), // Enter ሲጫኑ እንዲፈልግ
+        ),
       ),
     );
   }

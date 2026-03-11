@@ -20,6 +20,9 @@ class SkillForm extends StatefulWidget {
 
 class _SkillsFormState extends State<SkillForm> {
   final TextEditingController _customSkillController = TextEditingController();
+  final ScrollController _mainScrollController = ScrollController();
+  final ScrollController _listScrollController = ScrollController();
+
   final stt.SpeechToText _speech = stt.SpeechToText();
   bool _isListening = false;
   bool _isSaving = false;
@@ -38,6 +41,8 @@ class _SkillsFormState extends State<SkillForm> {
   @override
   void dispose() {
     _customSkillController.dispose();
+    _mainScrollController.dispose();
+    _listScrollController.dispose();
     super.dispose();
   }
 
@@ -45,11 +50,11 @@ class _SkillsFormState extends State<SkillForm> {
     setState(() => _isSaving = true);
     try {
       final db = DatabaseHelper.instance;
-      await DatabaseHelper.instance.clearSkills(widget.cv.id);
+      await DatabaseHelper.instance.clearSkills(widget.cv.profileid);
 
       for (var skill in widget.cv.skills) {
         await db.addSkill({
-          'profileid': widget.cv.id,
+          'profileid': widget.cv.profileid,
           'name': skill['name'],
           'level': skill['level'] ?? "",
         });
@@ -62,6 +67,7 @@ class _SkillsFormState extends State<SkillForm> {
               "Skills saved successfully!",
             ),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 2), // ለምን ያህል ጊዜ እንደሚቆይ
           ),
         );
       }
@@ -130,61 +136,65 @@ class _SkillsFormState extends State<SkillForm> {
     return Column(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSectionHeader("My Skills (${widget.cv.skills.length})",
-                    Icons.star_rounded, themeColor, fontFamily),
-                SizedBox(height: 10.h),
-                _buildSkillList(themeColor, fontFamily),
-                SizedBox(height: 20.h),
+          child: Scrollbar(
+            controller: _mainScrollController,
+            child: SingleChildScrollView(
+              controller: _mainScrollController,
+              padding: EdgeInsets.all(16.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildSectionHeader("My Skills (${widget.cv.skills.length})",
+                      Icons.star_rounded, themeColor, fontFamily),
+                  SizedBox(height: 10.h),
+                  _buildSkillList(themeColor, fontFamily),
+                  SizedBox(height: 20.h),
 
-                // --- ይሄ ነው ዋናው አንድ ሳጥን (One Box) ---
-                Container(
-                  padding: EdgeInsets.all(16.w),
-                  decoration: _iphoneCardDecoration(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionHeader("Add New Skill",
-                          Icons.add_circle_outline, themeColor, fontFamily),
-                      SizedBox(height: 12.h),
+                  // --- ይሄ ነው ዋናው አንድ ሳጥን (One Box) ---
+                  Container(
+                    padding: EdgeInsets.all(16.w),
+                    decoration: _iphoneCardDecoration(),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionHeader("Add New Skill",
+                            Icons.add_circle_outline, themeColor, fontFamily),
+                        SizedBox(height: 12.h),
 
-                      // 1. ካቴጎሪ መምረጫው
-                      _buildCategoryDropdown(themeColor, fontFamily),
+                        // 1. ካቴጎሪ መምረጫው
+                        _buildCategoryDropdown(themeColor, fontFamily),
 
-                      // 2. ካቴጎሪ ሲመረጥ ብቻ ዝርዝሩ ወዲያውኑ ይታያል
-                      if (_selectedCategory != null) ...[
-                        SizedBox(height: 10.h),
-                        _buildSkillSelectionList(themeColor, fontFamily),
+                        // 2. ካቴጎሪ ሲመረጥ ብቻ ዝርዝሩ ወዲያውኑ ይታያል
+                        if (_selectedCategory != null) ...[
+                          SizedBox(height: 10.h),
+                          _buildSkillSelectionList(themeColor, fontFamily),
+                        ],
+
+                        SizedBox(height: 15.h),
+                        _buildCustomInputRow(themeColor, fontFamily),
+                        SizedBox(height: 12.h),
+                        _buildPickerTrigger(
+                            "Proficiency",
+                            _selectedSkillLevel.isEmpty
+                                ? "Not Selected"
+                                : _selectedSkillLevel,
+                            () => _showLevelPicker(context),
+                            themeColor,
+                            fontFamily),
+
+                        // ቢያንስ አንድ ስኪል ካለ የሴቭ ቁልፉ እዚሁ ሳጥን ውስጥ ይታያል
+                        if (widget.cv.skills.isNotEmpty) ...[
+                          SizedBox(height: 20.h),
+                          const Divider(),
+                          SizedBox(height: 10.h),
+                          _buildSaveButtonInside(themeColor),
+                        ],
                       ],
-
-                      SizedBox(height: 15.h),
-                      _buildCustomInputRow(themeColor, fontFamily),
-                      SizedBox(height: 12.h),
-                      _buildPickerTrigger(
-                          "Proficiency",
-                          _selectedSkillLevel.isEmpty
-                              ? "Not Selected"
-                              : _selectedSkillLevel,
-                          () => _showLevelPicker(context),
-                          themeColor,
-                          fontFamily),
-
-                      // ቢያንስ አንድ ስኪል ካለ የሴቭ ቁልፉ እዚሁ ሳጥን ውስጥ ይታያል
-                      if (widget.cv.skills.isNotEmpty) ...[
-                        SizedBox(height: 20.h),
-                        const Divider(),
-                        SizedBox(height: 10.h),
-                        _buildSaveButtonInside(themeColor),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-                SizedBox(height: 20.h),
-              ],
+                  SizedBox(height: 20.h),
+                ],
+              ),
             ),
           ),
         ),
@@ -246,17 +256,32 @@ class _SkillsFormState extends State<SkillForm> {
               controlAffinity: ListTileControlAffinity.leading,
               onChanged: (bool? selected) {
                 setState(() {
+                  // 1. መጀመሪያ ሊስቱን ወደ ትክክለኛው አይነት (List<Map<String, dynamic>>) እንቀይረው
+                  final List<Map<String, dynamic>> currentSkills =
+                      List<Map<String, dynamic>>.from(widget.cv.skills);
+
                   if (selected == true) {
-                    widget.cv.skills.add({
-                      'name': skill,
-                      'level': _selectedSkillLevel.isEmpty
-                          ? "Intermediate"
-                          : _selectedSkillLevel
-                    });
+                    // 2. ስኪሉ ቀድሞ መኖሩን ቼክ እናድርግ
+                    bool alreadyExists =
+                        currentSkills.any((e) => e['name'] == skill);
+
+                    if (!alreadyExists) {
+                      currentSkills.add({
+                        'name': skill,
+                        'level': _selectedSkillLevel.isEmpty
+                            ? "Intermediate"
+                            : _selectedSkillLevel
+                      });
+                    }
                   } else {
-                    widget.cv.skills.removeWhere((e) => e['name'] == skill);
+                    // 3. ካልተመረጠ እናስወግደው
+                    currentSkills.removeWhere((e) => e['name'] == skill);
                   }
+
+                  // 4. አሁን በሥርዓት ሴቭ ያደርገዋል (ምክንያቱም አይነታቸው አንድ አይነት ነው)
+                  widget.cv.skills = currentSkills;
                 });
+
                 if (widget.onDataChanged != null) widget.onDataChanged!();
               },
             );

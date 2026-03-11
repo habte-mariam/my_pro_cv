@@ -12,15 +12,32 @@ class AdminStatsPage extends StatefulWidget {
 class _AdminStatsPageState extends State<AdminStatsPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _isAccessDenied = false;
   List<Map<String, dynamic>> _userLogs = [];
+  List<Map<String, dynamic>> _filteredLogs = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  // 🎯 የአድሚን ኢሜይል
+  final String _adminEmail = "habtiet96@gmail.com";
 
   @override
   void initState() {
     super.initState();
+    _checkAccessAndFetchLogs();
+  }
+
+  Future<void> _checkAccessAndFetchLogs() async {
+    final user = _supabase.auth.currentUser;
+    if (user?.email != _adminEmail) {
+      setState(() {
+        _isAccessDenied = true;
+        _isLoading = false;
+      });
+      return;
+    }
     _fetchUserLogs();
   }
 
-  // ከ Supabase 'user_logs' ቴብል ዳታ ማምጣት
   Future<void> _fetchUserLogs() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
@@ -34,28 +51,65 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       if (mounted) {
         setState(() {
           _userLogs = List<Map<String, dynamic>>.from(response);
+          _filteredLogs = _userLogs;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint("Error fetching logs: $e");
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text("Error fetching data: $e"),
-              backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _runFilter(String enteredKeyword) {
+    List<Map<String, dynamic>> results = [];
+    if (enteredKeyword.isEmpty) {
+      results = _userLogs;
+    } else {
+      results = _userLogs
+          .where((user) =>
+              (user["email"] ?? "")
+                  .toLowerCase()
+                  .contains(enteredKeyword.toLowerCase()) ||
+              (user["name"] ?? "")
+                  .toLowerCase()
+                  .contains(enteredKeyword.toLowerCase()) ||
+              (user["model"] ?? "")
+                  .toLowerCase()
+                  .contains(enteredKeyword.toLowerCase()))
+          .toList();
+    }
+    setState(() {
+      _filteredLogs = results;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isAccessDenied) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline, size: 80, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text("Access Denied",
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const Text("Only Habtie can access this dashboard."),
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Go Back"))
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text("User Analytics Dashboard",
+        title: const Text("Admin Analytics",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: Colors.indigo[900],
         foregroundColor: Colors.white,
@@ -63,39 +117,42 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetchUserLogs,
-          )
+              icon: const Icon(Icons.refresh), onPressed: _fetchUserLogs),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _fetchUserLogs,
-              child: _userLogs.isEmpty
-                  ? const Center(child: Text("No users registered yet."))
-                  : Column(
-                      children: [
-                        _buildSummaryHeader(_userLogs.length),
-                        Expanded(
-                          child: ListView.builder(
-                            itemCount: _userLogs.length,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+          : Column(
+              children: [
+                _buildSummaryHeader(_filteredLogs.length),
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => _runFilter(value),
+                    decoration: InputDecoration(
+                      hintText: "Search user, email or device...",
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _fetchUserLogs,
+                    child: _filteredLogs.isEmpty
+                        ? const Center(child: Text("No users found."))
+                        : ListView.builder(
+                            itemCount: _filteredLogs.length,
+                            padding: const EdgeInsets.only(bottom: 20),
                             itemBuilder: (context, index) {
-                              var data = _userLogs[index];
-
-                              // ቀን አቀራረብ ከጥንቃቄ ጋር
-                              String formattedDate = "Unknown";
-                              try {
-                                if (data['last_seen'] != null) {
-                                  DateTime date =
-                                      DateTime.parse(data['last_seen']);
-                                  formattedDate =
-                                      DateFormat('MMM d, hh:mm a').format(date);
-                                }
-                              } catch (e) {
-                                formattedDate = "Invalid Date";
-                              }
+                              var data = _filteredLogs[index];
+                              String formattedDate =
+                                  _formatDate(data['last_seen']);
 
                               return Card(
                                 margin: const EdgeInsets.symmetric(
@@ -105,13 +162,20 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                                     borderRadius: BorderRadius.circular(12)),
                                 child: ExpansionTile(
                                   leading: CircleAvatar(
-                                    backgroundColor: Colors.indigo[50],
+                                    backgroundColor:
+                                        data['email'] == 'guest_user'
+                                            ? Colors.grey[300]
+                                            : Colors.indigo[100],
                                     child: Icon(Icons.person,
                                         color: Colors.indigo[900]),
                                   ),
-                                  title: Text(data['name'] ?? "Guest User",
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold)),
+                                  title: Text(
+                                    data['email'] == 'guest_user'
+                                        ? "Guest User"
+                                        : (data['email'] ?? "Unknown"),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
                                   subtitle: Text("Last Active: $formattedDate",
                                       style: const TextStyle(fontSize: 12)),
                                   children: [
@@ -121,27 +185,18 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                                       child: Column(
                                         children: [
                                           _buildDetailHeader(
-                                              "Location Analytics"),
+                                              "Location & Device"),
                                           _buildInfoRow(
                                               Icons.gps_fixed,
-                                              "GPS Location:",
+                                              "GPS:",
                                               data['real_gps_location'] ??
                                                   "Not Detected",
                                               Colors.green),
                                           _buildInfoRow(
-                                              Icons.edit_location_alt,
-                                              "CV Address:",
-                                              data['cv_profile_address'] ??
-                                                  "Not Filled",
-                                              Colors.orange),
-                                          _buildInfoRow(
                                               Icons.public,
-                                              "System IP:",
+                                              "IP/Location:",
                                               data['location'] ?? "N/A",
                                               Colors.blue),
-                                          const Divider(height: 25),
-                                          _buildDetailHeader(
-                                              "Device Information"),
                                           _buildInfoRow(
                                               Icons.phone_android,
                                               "Model:",
@@ -151,12 +206,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                                               Icons.battery_std,
                                               "Battery:",
                                               data['battery'] ?? "N/A",
-                                              Colors.black87),
-                                          _buildInfoRow(
-                                              Icons.wifi,
-                                              "Network:",
-                                              data['internet'] ?? "N/A",
-                                              Colors.black87),
+                                              Colors.orange),
                                           const SizedBox(height: 10),
                                           Row(
                                             mainAxisAlignment:
@@ -165,7 +215,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                                               _smallBadge(
                                                   "OS: ${data['os_version'] ?? 'N/A'}"),
                                               _smallBadge(
-                                                  "Ver: ${data['app_version'] ?? 'N/A'}"),
+                                                  "App Ver: ${data['app_version'] ?? 'N/A'}"),
                                             ],
                                           )
                                         ],
@@ -176,14 +226,22 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
                               );
                             },
                           ),
-                        ),
-                      ],
-                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }
 
-  // --- ዲዛይን ሰሪዎች (Helper Widgets) ---
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return "Unknown";
+    try {
+      DateTime date = DateTime.parse(dateStr).toLocal();
+      return DateFormat('MMM d, hh:mm a').format(date);
+    } catch (e) {
+      return "Invalid Date";
+    }
+  }
 
   Widget _buildSummaryHeader(int count) {
     return Container(
@@ -197,7 +255,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.group, color: Colors.white, size: 28),
+          const Icon(Icons.analytics, color: Colors.white, size: 28),
           const SizedBox(width: 15),
           Text("Total Active Users: $count",
               style: const TextStyle(
@@ -228,7 +286,6 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 16, color: iconColor),
           const SizedBox(width: 10),
@@ -236,11 +293,10 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
               style: const TextStyle(fontSize: 12, color: Colors.black54)),
           const SizedBox(width: 5),
           Expanded(
-            child: Text(value,
-                style:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.right),
-          ),
+              child: Text(value,
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right)),
         ],
       ),
     );

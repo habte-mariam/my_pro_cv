@@ -191,10 +191,10 @@ class _ExperienceFormState extends State<ExperienceForm> {
 
     setState(() => _isSaving = true);
     try {
-      await DatabaseHelper.instance.clearExperience(widget.cv.id);
+      await DatabaseHelper.instance.clearExperience(widget.cv.profileid);
       for (var exp in widget.cv.experience) {
         Map<String, dynamic> data = Map.from(exp);
-        data['profileid'] = widget.cv.id;
+        data['profileid'] = widget.cv.profileid;
         await DatabaseHelper.instance.addExperience(data);
       }
       _showSnackBar("Experience Saved Successfully!", Colors.green);
@@ -247,14 +247,27 @@ class _ExperienceFormState extends State<ExperienceForm> {
 
   Widget _buildExperienceCard(
       Map<String, dynamic> exp, int index, Color themeColor) {
-    bool isCurrent = exp['isCurrentlyWorking'] == 1;
+    // 1. Null check and Default values (ወሳኙ ክፍል)
+    // እያንዳንዱን እሴት null ከሆነ ወደ ባዶ string እንቀይረዋለን
+    final String companyName = (exp['companyName'] ?? '').toString();
+    final String jobTitle = (exp['jobTitle'] ?? '').toString();
+    final String startDate = (exp['startDate'] ?? 'Select Date').toString();
+    final String endDate = (exp['endDate'] ?? 'Select Date').toString();
+    final String jobDescription = (exp['jobDescription'] ?? '').toString();
+    final String achievements = (exp['achievements'] ?? '').toString();
+
+    // Boolean check: 1 ወይም true ከሆነ ብቻ true ይሆናል
+    bool isCurrent =
+        exp['isCurrentlyWorking'] == 1 || exp['isCurrentlyWorking'] == true;
+
     final descKey = "exp_${index}_jobDescription";
     final achKey = "exp_${index}_achievements";
 
+    // Controller setup with null safety
     _controllers.putIfAbsent(
-        descKey, () => TextEditingController(text: exp['jobDescription']));
+        descKey, () => TextEditingController(text: jobDescription));
     _controllers.putIfAbsent(
-        achKey, () => TextEditingController(text: exp['achievements']));
+        achKey, () => TextEditingController(text: achievements));
 
     InputDecoration _buildInputDecoration(String label) {
       return InputDecoration(
@@ -311,16 +324,19 @@ class _ExperienceFormState extends State<ExperienceForm> {
           const Divider(),
           SizedBox(height: 10.h),
 
-          _buildCustomTextField("Company Name", exp['companyName'], (v) {
+          // Company Name
+          _buildCustomTextField("Company Name", companyName, (v) {
             exp['companyName'] = v;
             _notifyChange();
           }, _buildInputDecoration),
 
-          _buildCustomTextField("Job Title", exp['jobTitle'], (v) {
+          // Job Title
+          _buildCustomTextField("Job Title", jobTitle, (v) {
             exp['jobTitle'] = v;
             _notifyChange();
           }, _buildInputDecoration),
 
+          // Currently Working Switch
           Container(
             decoration: BoxDecoration(
               color: const Color(0xFFF8F9FA),
@@ -344,16 +360,17 @@ class _ExperienceFormState extends State<ExperienceForm> {
             ),
           ),
 
+          // Dates
           Row(
             children: [
               Expanded(
-                child: _buildDatePickerBox("Start Date", exp['startDate'],
+                child: _buildDatePickerBox("Start Date", startDate,
                     () => _selectDate(context, exp, 'startDate')),
               ),
               if (!isCurrent) ...[
                 SizedBox(width: 12.w),
                 Expanded(
-                  child: _buildDatePickerBox("End Date", exp['endDate'],
+                  child: _buildDatePickerBox("End Date", endDate,
                       () => _selectDate(context, exp, 'endDate')),
                 ),
               ],
@@ -361,31 +378,30 @@ class _ExperienceFormState extends State<ExperienceForm> {
           ),
           SizedBox(height: 15.h),
 
-          // Job Description - እዚህ ጋር controller ተጨምሯል
+          // Job Description with AI
           _buildCustomTextField(
             "Job Description",
-            exp['jobDescription'],
+            jobDescription,
             (v) {
               exp['jobDescription'] = v;
               _notifyChange();
             },
             _buildInputDecoration,
             maxLines: 4,
-            controller: _controllers[descKey], // የ AI ጽሁፍ እንዲታይ
+            controller: _controllers[descKey],
           ),
-// Job Description AI Button
           _buildAIButton(
             () => _generateAIContent(exp, 'jobDescription', index),
             themeColor,
-            descKey, // 👈 ይህንን ጨምር (የመጀመሪያው በተን መለያ)
+            descKey,
           ),
 
           SizedBox(height: 12.h),
 
-          // Key Achievements
+          // Key Achievements with AI
           _buildCustomTextField(
             "Key Achievements",
-            exp['achievements'],
+            achievements,
             (v) {
               exp['achievements'] = v;
               _notifyChange();
@@ -394,12 +410,10 @@ class _ExperienceFormState extends State<ExperienceForm> {
             maxLines: 3,
             controller: _controllers[achKey],
           ),
-
-          // Achievements AI Button
           _buildAIButton(
             () => _generateAIContent(exp, 'achievements', index),
             themeColor,
-            achKey, // 👈 ይህንን ጨምር (የሁለተኛው በተን መለያ)
+            achKey,
           ),
         ],
       ),

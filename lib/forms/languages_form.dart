@@ -34,12 +34,12 @@ class _LanguagesFormState extends State<LanguagesForm> {
     try {
       final db = DatabaseHelper.instance;
       // 1. መጀመሪያ በሊስቱ ያለውን የድሮ ዳታ አጥፋ (Profile ID 1 እንደሆነ በማሰብ)
-      await DatabaseHelper.instance.clearLanguages(widget.cv.id);
+      await DatabaseHelper.instance.clearLanguages(widget.cv.profileid);
 
       // 2. አሁን ያሉትን ቋንቋዎች በሙሉ አንድ በአንድ አስገባ
       for (var lang in widget.cv.languages) {
         await db.addLanguage({
-          'profileid': widget.cv.id,
+          'profileid': widget.cv.profileid,
           'name': lang['name'],
           'level': lang['level'],
         });

@@ -6,7 +6,7 @@ part of 'cv_model.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 CvModel _$CvModelFromJson(Map<String, dynamic> json) => CvModel(
-      id: json['profileid'] as String? ?? '',
+      profileid: json['profileid'] as String? ?? '',
       firstName: json['firstName'] as String? ?? '',
       lastName: json['lastName'] as String? ?? '',
       jobTitle: json['jobTitle'] as String? ?? '',
@@ -50,7 +50,7 @@ CvModel _$CvModelFromJson(Map<String, dynamic> json) => CvModel(
     );
 
 Map<String, dynamic> _$CvModelToJson(CvModel instance) => <String, dynamic>{
-      'profileid': instance.id,
+      'profileid': instance.profileid,
       'firstName': instance.firstName,
       'lastName': instance.lastName,
       'jobTitle': instance.jobTitle,

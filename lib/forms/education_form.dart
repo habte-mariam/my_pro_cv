@@ -47,13 +47,13 @@ class _EducationFormState extends State<EducationForm> {
       }
 
 // 2. ከ CvModel ባዶ ከሆነ ከ SQLite ዳታቤዝ እንፈልጋለን
-      debugPrint("Education: Fetching for UUID: ${widget.cv.id}");
+      debugPrint("Education: Fetching for UUID: ${widget.cv.profileid}");
 
       final db = await DatabaseHelper.instance.database;
       final results = await db.query(
         'education',
         where: 'profileid = ?',
-        whereArgs: [widget.cv.id.toString()],
+        whereArgs: [widget.cv.profileid.toString()],
       );
 
       debugPrint("Found ${results.length} education records");
@@ -87,7 +87,7 @@ class _EducationFormState extends State<EducationForm> {
   void _addNewEntry() {
     setState(() {
       _tempEducationList.add({
-        'profileid': widget.cv.id,
+        'profileid': widget.cv.profileid,
         'school': '',
         'degree': 'Bachelor\'s Degree',
         'field': '',
@@ -107,7 +107,7 @@ class _EducationFormState extends State<EducationForm> {
   Future<void> _saveAllToDatabase() async {
     setState(() => _isSaving = true);
     try {
-      await DatabaseHelper.instance.clearEducation(widget.cv.id);
+      await DatabaseHelper.instance.clearEducation(widget.cv.profileid);
 
       for (var edu in _tempEducationList) {
         final dataToSave = Map<String, dynamic>.from(edu);
@@ -116,7 +116,7 @@ class _EducationFormState extends State<EducationForm> {
         dataToSave.remove('id');
 
         // 2. ትክክለኛው profileid መኖሩን አረጋግጥ
-        dataToSave['profileid'] = widget.cv.id;
+        dataToSave['profileid'] = widget.cv.profileid;
 
         await DatabaseHelper.instance.addEducation(dataToSave);
       }

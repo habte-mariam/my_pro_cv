@@ -12,7 +12,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('cv_pro_final3.db');
+    _database = await _initDB('cv_pro_final5.db');
     return _database!;
   }
 
@@ -59,8 +59,7 @@ class DatabaseHelper {
     // 1. Profile Table
     await db.execute('''
       CREATE TABLE profiles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        profileid TEXT UNIQUE,
+        profileid TEXT PRIMARY KEY,
         firstName TEXT, lastName TEXT, jobTitle TEXT,
         gender TEXT, age TEXT, email TEXT, 
         phone TEXT, phone2 TEXT, address TEXT,
@@ -173,46 +172,68 @@ class DatabaseHelper {
     final db = await instance.database;
     final cleanData = Map<String, dynamic>.from(data);
 
-    // አስፈላጊ ያልሆኑትን እና ሊስት የሆኑትን እናስወግዳለን
-    cleanData.remove('profileid');
-    cleanData.remove('education');
-    cleanData.remove('experience');
-    cleanData.remove('skills');
-    cleanData.remove('languages');
-    cleanData.remove('certificates');
-    cleanData.remove('user_references');
-    cleanData.remove('lastUpdated');
+    // 🔍 UUID-ን በትክክል መለየት (Supabase 'id' ወይም 'profileid' ሊል ይችላል)
+    final String? cloudUuid = (data['profileid'] ?? data['id'])?.toString();
+    final String userEmail = data['email']?.toString() ?? '';
 
-    // መፍትሄ፡ layoutOrder List ከሆነ ወደ String እንቀይረዋለን (ለምሳሌ በ ኮማ በመለየት)
+    final keysToRemove = [
+      'education',
+      'experience',
+      'skills',
+      'languages',
+      'certificates',
+      'user_references',
+      'lastUpdated',
+      'id'
+    ];
+    for (var key in keysToRemove) {
+      cleanData.remove(key);
+    }
+
+    // ✅ UUID መኖሩን እና ለ SQLite መሰጠቱን እናረጋግጥ
+    if (cloudUuid != null && cloudUuid.isNotEmpty) {
+      cleanData['profileid'] = cloudUuid;
+    }
+
     if (cleanData['layoutOrder'] is List) {
       cleanData['layoutOrder'] = (cleanData['layoutOrder'] as List).join(',');
     }
 
     try {
-      final existing = await db.query('profiles', limit: 1);
+      // መጀመሪያ በኢሜይል እንፈልግ
+      final existing = await db.query('profiles',
+          where: 'email = ?', whereArgs: [userEmail], limit: 1);
+
       if (existing.isNotEmpty) {
-        int profileid = existing.first['profileid'] as int;
-        await db.update('profiles', cleanData,
-            where: 'profileid = ?', whereArgs: [profileid]);
-        return profileid;
+        debugPrint(
+            "Updating profile for email: $userEmail with UUID: $cloudUuid");
+        // 💡 እዚህ ጋር 'whereArgs' ላይ ኢሜይሉን ተጠቅመን UUID-ን ጨምሮ ሁሉንም እናድሳለን
+        return await db.update('profiles', cleanData,
+            where: 'email = ?', whereArgs: [userEmail]);
       } else {
+        debugPrint("Inserting new profile for email: $userEmail");
         return await db.insert('profiles', cleanData);
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint("Local Save Error: $e");
-      debugPrint(stackTrace.toString());
       return -1;
     }
   }
 
+// 📝 የ CV ማጠቃለያን (Summary) ብቻ ለብቻው ለማዘመን
   Future<int> updateProfileSummary(String profileid, String summaryText) async {
     final db = await instance.database;
-    return await db.update(
-      'profiles',
-      {'summary': summaryText},
-      where: 'profileid = ?',
-      whereArgs: [profileid],
-    );
+    try {
+      return await db.update(
+        'profiles',
+        {'summary': summaryText},
+        where: 'profileid = ?',
+        whereArgs: [profileid],
+      );
+    } catch (e) {
+      debugPrint("Update Summary Error: $e");
+      return -1;
+    }
   }
 
   Future<Map<String, dynamic>> getSettings() async {
@@ -323,22 +344,56 @@ class DatabaseHelper {
     });
   }
 
+  void _fixMapping(String table, Map<String, dynamic> map) {
+    // 1. የቁልፎችን ስም (Key Names) ማስተካከል
+    _renameKey(map, 'firstname', 'firstName');
+    _renameKey(map, 'lastname', 'lastName');
+    _renameKey(map, 'jobtitle', 'jobTitle');
+    _renameKey(map, 'profileimagepath', 'profileImagePath');
+
+    if (table == 'experience') {
+      _renameKey(map, 'companyname', 'companyName');
+      _renameKey(map, 'startdate', 'startDate');
+      _renameKey(map, 'enddate', 'endDate');
+      _renameKey(map, 'jobdescription', 'jobDescription');
+      _renameKey(map, 'iscurrentlyworking', 'isCurrentlyWorking');
+
+      var isWorking = map['isCurrentlyWorking'];
+      map['isCurrentlyWorking'] = (isWorking == true || isWorking == 1) ? 1 : 0;
+    } else if (table == 'education') {
+      _renameKey(map, 'gradyear', 'gradYear');
+    } else if (table == 'certificates') {
+      _renameKey(map, 'certname', 'certName');
+    }
+
+    // 2. Null ወደ ባዶ String መቀየር
+    map.keys.toList().forEach((key) {
+      if (map[key] == null) {
+        map[key] = (key == 'isCurrentlyWorking') ? 0 : '';
+      }
+    });
+  }
+
+// Helper function ለስም መቀየር
+  void _renameKey(Map<String, dynamic> map, String oldKey, String newKey) {
+    if (map.containsKey(oldKey)) {
+      map[newKey] = map.remove(oldKey);
+    }
+  }
+
+  // 🔄 ዋናው የ Sync ፋንክሽን
   Future<void> syncFullDataToLocal(Map<String, dynamic> fullData) async {
     final db = await instance.database;
 
     await db.transaction((txn) async {
-      // 1. UUID-ን በትክክል መያዝ (Supabase 'id' ወይም 'profileid' ሊል ይችላል)
+      // 1. UUID መለየት
       final String cloudUuid =
-          (fullData['id'] ?? fullData['profileid'])?.toString() ?? '';
+          (fullData['profileid'] ?? fullData['id'])?.toString() ?? '';
+      if (cloudUuid.isEmpty) return;
 
-      if (cloudUuid.isEmpty) {
-        debugPrint("❌ Error: Cloud UUID is missing. Sync aborted.");
-        return;
-      }
-
-      // 2. ፕሮፋይሉን ማጽዳት
+      // 2. ፕሮፋይሉን ማዘጋጀት
       final cleanProfile = Map<String, dynamic>.from(fullData);
-      final listKeys = [
+      final skipKeys = [
         'education',
         'experience',
         'skills',
@@ -346,36 +401,27 @@ class DatabaseHelper {
         'certificates',
         'user_references',
         'id',
-        'profileid',
         'lastUpdated',
         'createdAt',
         'updatedAt'
       ];
-
-      for (var key in listKeys) {
+      for (var key in skipKeys) {
         cleanProfile.remove(key);
       }
 
-      // UUID-ን መልሰን እንጨምር
+      _fixMapping('profiles', cleanProfile);
       cleanProfile['profileid'] = cloudUuid;
 
+      // LayoutOrder list ከሆነ ወደ String ቀይረው
       if (cleanProfile['layoutOrder'] is List) {
         cleanProfile['layoutOrder'] =
             (cleanProfile['layoutOrder'] as List).join(',');
       }
 
-      // 🔵 በ UUID አማካኝነት Update ወይም Insert ማድረግ
-      final existing = await txn.query('profiles',
-          where: 'profileid = ?', whereArgs: [cloudUuid], limit: 1);
+      await txn.insert('profiles', cleanProfile,
+          conflictAlgorithm: ConflictAlgorithm.replace);
 
-      if (existing.isNotEmpty) {
-        await txn.update('profiles', cleanProfile,
-            where: 'profileid = ?', whereArgs: [cloudUuid]);
-      } else {
-        await txn.insert('profiles', cleanProfile);
-      }
-
-      // 🟢 3. ዝርዝሮችን በ UUID ማመሳሰል
+      // 3. ዝርዝሮችን ማመሳሰል
       final tablesToSync = [
         'education',
         'experience',
@@ -384,69 +430,47 @@ class DatabaseHelper {
         'certificates',
         'user_references'
       ];
-// ... ከላይ ካለው በመቀጠል
+
       for (var table in tablesToSync) {
         await txn.delete(table, where: 'profileid = ?', whereArgs: [cloudUuid]);
 
         if (fullData[table] != null && fullData[table] is List) {
           for (var item in fullData[table]) {
             final map = Map<String, dynamic>.from(item);
-
-            map.remove('id');
+            map.remove('id'); // SQLite auto-increment ይጠቀማል
             map['profileid'] = cloudUuid;
 
-            if (table == 'experience') {
-              if (map.containsKey('startdate'))
-                map['startDate'] = map.remove('startdate');
-              if (map.containsKey('enddate'))
-                map['endDate'] = map.remove('enddate');
-              // Boolean conversion
-              map['isCurrentlyWorking'] = (map['isCurrentlyWorking'] == true ||
-                      map['isCurrentlyWorking'] == 1)
-                  ? 1
-                  : 0;
-            }
+            _fixMapping(table, map); // <--- እዚህ ጋር ስሞቹን ያስተካክላል
 
             try {
               await txn.insert(table, map);
-              debugPrint("✅ Saved to Local SQLite: $table record");
+              debugPrint("✅ Synced $table record to SQLite");
             } catch (e) {
-              // 💡 እዚህ ጋር ስህተት ካለ "Table has no column named..." ብሎ ይነግርሃል
               debugPrint("❌ SQLite Insert Error ($table): $e");
             }
           }
         }
       }
-      debugPrint("Full Data Synced using UUID: $cloudUuid ✅");
+      debugPrint("Full Data Sync Completed for $cloudUuid ✅");
     });
   }
 
-  Future<Map<String, dynamic>?> getFullProfile() async {
+  // 📖 ዳታውን ሙሉ በሙሉ ማንበቢያ
+  Future<Map<String, dynamic>?> getFullProfile({String? email}) async {
     final db = await instance.database;
+    final List<Map<String, dynamic>> res;
 
-    final res = await db.query('profiles', limit: 1);
+    if (email != null && email.isNotEmpty) {
+      res = await db.query('profiles',
+          where: 'email = ?', whereArgs: [email.trim()], limit: 1);
+    } else {
+      res = await db.query('profiles', limit: 1);
+    }
+
     if (res.isEmpty) return null;
 
     Map<String, dynamic> data = Map<String, dynamic>.from(res.first);
-
-    // 1. መጀመሪያ በ 'profileid' ኮለም ውስጥ ያለውን UUID እንውሰድ
     String actualUuid = data['profileid']?.toString() ?? "";
-
-    // 2. ካልተገኘ ብቻ ወደ ሌላ አማራጭ እንሂድ
-    if (actualUuid.isEmpty) {
-      // በጭራሽ UUID ከሌለ ዳታቤዙ ገና አልተሰመረም (Sync አልሆነም) ማለት ነው
-      debugPrint("⚠️ Warning: No UUID found in profile table!");
-      // እዚህ ጋር ID = 1 ብለን ከመፈለግ ይልቅ፣ UUID እስኪመጣ መጠበቅ ወይም
-      // ከመጀመሪያው የትምህርት ሪከርድ UUID-ን መፈለግ ይሻላል
-      final eduCheck = await db.query('education', limit: 1);
-      if (eduCheck.isNotEmpty) {
-        actualUuid = eduCheck.first['profileid'].toString();
-      }
-    }
-
-    // ወሳኝ፦ ለ CvModel እንዲመቸው ሁለቱንም እናስተካክል
-    data['id'] = actualUuid;
-    data['profileid'] = actualUuid;
 
     final tables = [
       'education',
@@ -456,15 +480,11 @@ class DatabaseHelper {
       'certificates',
       'user_references'
     ];
-
     for (var table in tables) {
-      // 🟢 እዚህ ጋር ነው ቼክ የምናደርገው
       final results = await db
           .query(table, where: 'profileid = ?', whereArgs: [actualUuid]);
-
-      debugPrint(
-          "Fetching $table: Found ${results.length} records for UUID: $actualUuid");
-      data[table] = results.map((e) => Map<String, dynamic>.from(e)).toList();
+      data[table] = results;
+      debugPrint("Local DB: Found ${results.length} records for $table");
     }
 
     return data;
